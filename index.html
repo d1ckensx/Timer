@@ -99,6 +99,7 @@
   .meter { height: 6px; border-radius: 999px; background: var(--bar); overflow: hidden; }
   .meter > div { height: 100%; width: 0; background: var(--fg); border-radius: 999px; transition: width 0.3s; }
   .goal { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.85rem; }
+  .goal input[type="time"] { width: auto; min-width: 7.5rem; }
   .goal input { width: 4.5rem; background: transparent; color: var(--fg); border: 0; border-bottom: 1px solid var(--line); padding: 3px 0; font: inherit; font-weight: 600; text-align: center; border-radius: 0; font-variant-numeric: tabular-nums; }
   .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 140px; }
   .col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; height: 100%; }
@@ -118,9 +119,32 @@
   .links button { background: transparent; border: 0; color: var(--muted); font: inherit; font-size: 0.85rem; padding: 4px 0; cursor: pointer; }
   .links button:hover { color: var(--fg); }
 
+  .line-in { width: 100%; min-width: 0; background: transparent; color: var(--fg); border: 0; border-bottom: 1px solid var(--line); padding: 8px 0; font: inherit; border-radius: 0; }
+  .tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 30vh; overflow-y: auto; }
+  .task { display: flex; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+  .task input[type="checkbox"] { width: 20px; height: 20px; flex: none; accent-color: #ffffff; cursor: pointer; }
+  .task span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .task.done span { color: var(--muted); text-decoration: line-through; }
+  .task button { background: transparent; border: 0; color: var(--muted); cursor: pointer; font-size: 1.2rem; line-height: 1; padding: 2px 8px; }
+  .task button:hover { color: var(--fg); }
+  .empty { color: var(--muted); font-size: 0.85rem; padding: 8px 0; }
+  .addrow { display: flex; gap: 10px; align-items: flex-end; }
+  .addrow button { background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; font: inherit; padding: 8px 14px; cursor: pointer; }
+  .addrow button:hover { border-color: var(--muted); }
+  .nudge { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 14px; font-size: 0.9rem; max-width: 100%; }
+  .nudge button { background: transparent; border: 0; font: inherit; font-size: 0.85rem; cursor: pointer; padding: 4px 0; color: var(--muted); }
+  .nudge button.go { color: var(--accent); font-weight: 600; }
+  details.notify summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+  details.notify[open] summary { color: var(--fg); margin-bottom: 12px; }
+  .check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: #ffffff; }
+  .two { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+  .topic { display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; color: var(--muted); }
+  .notify a { color: var(--muted); font-size: 0.85rem; }
+  .notify a:hover { color: var(--fg); }
   button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-  body.focus .panel, body.focus .status { display: none; }
+  body.focus .panel, body.focus .status, body.focus .nudge { display: none; }
   body.focus .time { font-size: calc(clamp(3rem, min(19vw, 55vh), 30rem) * var(--scale-time, 1)); }
   body.focus .bar {
     position: fixed; left: 0; right: 0;
@@ -128,7 +152,7 @@
     opacity: 0; pointer-events: none; transition: opacity 0.25s;
   }
   body.focus.active .bar, body.focus .bar:hover { opacity: 1; pointer-events: auto; }
-  body.focus #settings, body.focus #reset, body.focus #statsbtn { display: none; }
+  body.focus #settings, body.focus #reset, body.focus #statsbtn, body.focus #planbtn { display: none; }
   body.focus:not(.active) { cursor: none; }
   body.focus:not(.active) .bar:hover { cursor: auto; }
 </style>
@@ -139,6 +163,11 @@
   <section class="stage">
     <div id="time" class="time" role="timer">8:00:00</div>
     <p id="status" class="status">พร้อมเริ่ม</p>
+    <div id="nudge" class="nudge" hidden>
+      <span id="nudge-text"></span>
+      <button id="nudge-go" class="go" type="button">เปิดแผน</button>
+      <button id="nudge-later" type="button">ไว้ทีหลัง</button>
+    </div>
   </section>
 
   <section class="panel" id="panel" hidden aria-label="ตั้งเวลา">
@@ -209,12 +238,48 @@
     <button id="stats-done" class="done-btn" type="button">เสร็จ</button>
   </section>
 
+  <section class="panel" id="plan" hidden aria-label="แผนและแจ้งเตือน">
+    <h2>แผนและแจ้งเตือน</h2>
+    <div class="seg" role="group" aria-label="เลือกวัน">
+      <button id="view-today" type="button" aria-pressed="true">วันนี้</button>
+      <button id="view-tmr" type="button" aria-pressed="false">พรุ่งนี้</button>
+    </div>
+    <ul class="tasks" id="task-list"></ul>
+    <div class="addrow">
+      <input id="in-task" class="line-in" type="text" maxlength="80" autocomplete="off" placeholder="เพิ่มงาน เช่น ทำโจทย์ SVD 2 ข้อ">
+      <button id="task-add" type="button">เพิ่ม</button>
+    </div>
+    <label class="goal" for="in-pgoal"><span id="plan-goal-label">เป้าโฟกัสวันนี้</span> <input id="in-pgoal" type="number" inputmode="decimal" min="0" max="24" step="0.5" placeholder="6"> ชม.</label>
+    <details class="notify" id="notify-box">
+      <summary>การแจ้งเตือนถึงมือถือ (ทำงานแม้ปิดแอป)</summary>
+      <div class="group">
+        <label class="check" for="ntfy-on"><input id="ntfy-on" type="checkbox"> เปิดการแจ้งเตือน</label>
+        <div class="two">
+          <label class="goal" for="in-ptime">ถามแผนพรุ่งนี้เวลา <input id="in-ptime" type="time" value="21:00"></label>
+          <label class="goal" for="in-rtime">เตือนงานค้างเวลา <input id="in-rtime" type="time" value="20:00"></label>
+        </div>
+        <label class="topic" for="ntfy-topic">ชื่อช่อง (ถือเป็นรหัสผ่าน อย่าแชร์)
+          <input id="ntfy-topic" class="line-in" type="text" spellcheck="false" autocomplete="off" maxlength="64">
+        </label>
+        <div class="presets">
+          <button id="ntfy-copy" type="button">คัดลอกชื่อช่อง</button>
+          <button id="ntfy-test" type="button">ส่งทดสอบ</button>
+          <a id="ntfy-link" href="https://ntfy.sh/app" target="_blank" rel="noopener">เปิดหน้ารับแจ้งเตือน</a>
+        </div>
+        <p class="note" id="ntfy-msg">ลงแอป ntfy บนมือถือ กด + แล้วใส่ชื่อช่องด้านบน จากนั้นกด "ส่งทดสอบ"</p>
+        <p class="note">ข้อความที่ส่งไม่มีชื่องานของคุณ มีแค่จำนวนงานที่เหลือ ใช้แอปเปิดทิ้งไว้เครื่องหลักเครื่องเดียวเพื่อไม่ให้แจ้งเตือนซ้ำ</p>
+      </div>
+    </details>
+    <button id="plan-done" class="done-btn" type="button">เสร็จ</button>
+  </section>
+
   <footer class="bar">
     <button id="go" type="button">เริ่ม</button>
     <div class="links">
       <button id="reset" type="button">รีเซ็ต</button>
       <button id="settings" type="button" aria-expanded="false">ตั้งเวลา</button>
       <button id="statsbtn" type="button" aria-expanded="false">สถิติ</button>
+      <button id="planbtn" type="button" aria-expanded="false">แผน</button>
       <button id="focus" type="button" aria-pressed="false">โหมดโฟกัส</button>
     </div>
   </footer>
@@ -284,6 +349,7 @@
     el.pomo.setAttribute('aria-pressed', mode === 'pomo');
     el.gTime.hidden = mode !== 'down';
     el.gPomo.hidden = mode !== 'pomo';
+    updateNudge();
   }
 
   /* sound and screen lock */
@@ -378,9 +444,12 @@
   function showPanel(name) {
     el.panel.hidden = name !== 'settings';
     el.stats.hidden = name !== 'stats';
+    P.panel.hidden = name !== 'plan';
     el.settings.setAttribute('aria-expanded', name === 'settings');
     el.statsBtn.setAttribute('aria-expanded', name === 'stats');
+    P.btn.setAttribute('aria-expanded', name === 'plan');
     if (name === 'stats') renderStats();
+    if (name === 'plan') { renderPlan(); renderNotify(); }
   }
   function hm(ms) {
     var h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
@@ -389,7 +458,7 @@
   function renderStats() {
     accrue(Date.now());
     var now = new Date(), today = log[dayKey(now)] || 0;
-    var goalH = parseFloat(el.goal.value); if (isNaN(goalH) || goalH < 0) goalH = 0;
+    var pg = getPlan(dayKey(now)).goal, goalH = pg != null ? pg : parseFloat(el.goal.value); if (isNaN(goalH) || goalH < 0) goalH = 0;
     var goalMs = goalH * 3600000;
     $('st-today').textContent = hm(today);
     var pct = goalMs > 0 ? Math.min(100, today / goalMs * 100) : 0;
@@ -501,12 +570,212 @@
     applyInputs();
   });
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && (!el.panel.hidden || !el.stats.hidden)) { showPanel(''); return; }
+    if (e.key === 'Escape' && (!el.panel.hidden || !el.stats.hidden || !P.panel.hidden)) { showPanel(''); return; }
     var tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'button') return;
     if (e.code === 'Space') { e.preventDefault(); toggle(); }
     else if (e.key === 'f' || e.key === 'F') setFocus(!document.body.classList.contains('focus'));
   });
+
+  /* plans, nudges and push reminders through ntfy.sh */
+  var plans = load('lockin-plans', {});
+  if (!plans || typeof plans !== 'object') plans = {};
+  var notify = load('lockin-notify', {});
+  if (!notify || typeof notify !== 'object') notify = {};
+  if (!notify.planTime) notify.planTime = '21:00';
+  if (!notify.remindTime) notify.remindTime = '20:00';
+  var sched = load('lockin-sched', {});
+  if (!sched || typeof sched !== 'object') sched = {};
+  var planView = 'today', nudgeView = 'today', snoozeUntil = 0, syncing = false, syncAgain = false;
+  var NTFY = 'https://ntfy.sh';
+  var P = {
+    btn: $('planbtn'), panel: $('plan'), list: $('task-list'), add: $('in-task'), addBtn: $('task-add'),
+    goal: $('in-pgoal'), goalLabel: $('plan-goal-label'), vToday: $('view-today'), vTmr: $('view-tmr'),
+    nudge: $('nudge'), nudgeText: $('nudge-text'), nudgeGo: $('nudge-go'), nudgeLater: $('nudge-later'),
+    on: $('ntfy-on'), topic: $('ntfy-topic'), ptime: $('in-ptime'), rtime: $('in-rtime'),
+    test: $('ntfy-test'), copy: $('ntfy-copy'), msg: $('ntfy-msg'), link: $('ntfy-link'), box: $('notify-box'), done: $('plan-done')
+  };
+
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+  function atTime(d, hhmm) {
+    var p = String(hhmm).split(':');
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), parseInt(p[0], 10) || 0, parseInt(p[1], 10) || 0).getTime();
+  }
+  function getPlan(k) { return plans[k] || { tasks: [], goal: null }; }
+  function ensurePlan(k) { if (!plans[k]) plans[k] = { tasks: [], goal: null }; return plans[k]; }
+  function unchecked(k) { return getPlan(k).tasks.filter(function (t) { return !t.d; }).length; }
+  function savePlans() { save('lockin-plans', plans); }
+  function viewKey() { var n = new Date(); return dayKey(planView === 'today' ? n : addDays(n, 1)); }
+
+  function renderPlan() {
+    var p = getPlan(viewKey());
+    P.vToday.setAttribute('aria-pressed', planView === 'today');
+    P.vTmr.setAttribute('aria-pressed', planView === 'tomorrow');
+    P.goalLabel.textContent = planView === 'today' ? 'เป้าโฟกัสวันนี้' : 'เป้าโฟกัสพรุ่งนี้';
+    P.list.textContent = '';
+    if (!p.tasks.length) {
+      var e = document.createElement('li'); e.className = 'empty';
+      e.textContent = planView === 'today' ? 'ยังไม่มีงานของวันนี้' : 'ยังไม่ได้วางแผนพรุ่งนี้ พิมพ์งานแรกด้านล่างได้เลย';
+      P.list.appendChild(e);
+    }
+    p.tasks.forEach(function (t, i) {
+      var li = document.createElement('li'); li.className = 'task' + (t.d ? ' done' : '');
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!t.d;
+      cb.setAttribute('data-i', i); cb.setAttribute('aria-label', 'เสร็จแล้ว: ' + t.t);
+      var sp = document.createElement('span'); sp.textContent = t.t;
+      var x = document.createElement('button'); x.type = 'button'; x.textContent = '×';
+      x.setAttribute('data-del', i); x.setAttribute('aria-label', 'ลบงาน');
+      li.appendChild(cb); li.appendChild(sp); li.appendChild(x); P.list.appendChild(li);
+    });
+    P.goal.value = p.goal != null ? p.goal : '';
+    P.goal.placeholder = el.goal.value || '6';
+  }
+  function planChanged() { savePlans(); renderPlan(); updateNudge(); syncReminders(); }
+  function addTask() {
+    var v = P.add.value.trim(); if (!v) return;
+    var p = ensurePlan(viewKey()); if (p.tasks.length >= 30) return;
+    p.tasks.push({ t: v.slice(0, 80), d: false }); P.add.value = '';
+    planChanged(); P.add.focus();
+  }
+
+  function updateNudge() {
+    var now = new Date(), txt = '';
+    if (!running && Date.now() >= snoozeUntil) {
+      var left = unchecked(dayKey(now));
+      if (left > 0 && now.getTime() >= atTime(now, notify.remindTime)) {
+        txt = 'ยังเหลือ ' + left + ' งานของวันนี้ที่ยังไม่ได้ติ๊กเสร็จ'; nudgeView = 'today';
+      } else if (getPlan(dayKey(addDays(now, 1))).tasks.length === 0 && now.getTime() >= atTime(now, notify.planTime)) {
+        txt = 'พรุ่งนี้จะทำอะไรบ้าง? วางแผนไว้ก่อนนอน'; nudgeView = 'tomorrow';
+      }
+    }
+    P.nudge.hidden = !txt; P.nudgeText.textContent = txt;
+  }
+
+  /* ntfy: push messages scheduled ahead of time, so they arrive even when this app is closed */
+  function pageUrl() { return /^https?:/.test(location.href) ? location.href.split('#')[0].split('?')[0] : ''; }
+  function ntfyPublish(message, delaySec) {
+    var h = { 'Title': 'Lock In' };
+    if (pageUrl()) h['Click'] = pageUrl();
+    if (delaySec) h['Delay'] = String(delaySec);
+    return fetch(NTFY + '/' + notify.topic, { method: 'POST', headers: h, body: message })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); });
+  }
+  function ntfyCancel(id) { return fetch(NTFY + '/' + notify.topic + '/' + id, { method: 'DELETE' }).catch(function () {}); }
+  function randomTopic() {
+    var a = new Uint8Array(20), s = '', c = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    for (var i = 0; i < a.length; i++) s += c.charAt(a[i] % 36);
+    return 'lockin-' + s;
+  }
+  function saveNotify() { save('lockin-notify', notify); }
+  function saveSched() { save('lockin-sched', sched); }
+  function cancelAll() {
+    var chain = Promise.resolve();
+    Object.keys(sched).forEach(function (k) {
+      var s2 = sched[k]; delete sched[k];
+      chain = chain.then(function () { return ntfyCancel(s2.id); });
+    });
+    return chain.then(saveSched);
+  }
+  function syncReminders() {
+    if (!notify.enabled || !notify.topic) return;
+    if (syncing) { syncAgain = true; return; }
+    syncing = true;
+    var now = Date.now(), base = new Date(), jobs = [], seen = {};
+    [0, 1].forEach(function (n) {
+      var d = addDays(base, n), k = dayKey(d), left = unchecked(k);
+      var rAt = atTime(d, notify.remindTime), pAt = atTime(d, notify.planTime);
+      jobs.push({ slot: 'r-' + k, at: rAt, n: left, want: left > 0 && rAt > now + 60000,
+        msg: 'ยังเหลือ ' + left + ' งานของวันนี้ที่ยังไม่ได้ติ๊กเสร็จ เปิดแอปมาลุยต่อ' });
+      jobs.push({ slot: 'p-' + k, at: pAt, n: 0, want: pAt > now + 60000 && getPlan(dayKey(addDays(d, 1))).tasks.length === 0,
+        msg: 'พรุ่งนี้จะทำอะไรบ้าง? เปิดแอปมาวางแผนก่อนนอน' });
+    });
+    jobs.forEach(function (j) { seen[j.slot] = 1; });
+    var chain = Promise.resolve();
+    Object.keys(sched).forEach(function (k) {
+      if (!seen[k]) {
+        var old = sched[k]; delete sched[k];
+        if (old.at > now) chain = chain.then(function () { return ntfyCancel(old.id); });
+      }
+    });
+    jobs.forEach(function (j) {
+      chain = chain.then(function () {
+        var cur = sched[j.slot];
+        if (cur && j.want && cur.at === j.at && cur.n === j.n) return;
+        var step = Promise.resolve();
+        if (cur) { delete sched[j.slot]; step = ntfyCancel(cur.id); }
+        if (!j.want) return step;
+        return step.then(function () { return ntfyPublish(j.msg, Math.floor(j.at / 1000)); })
+          .then(function (res) { sched[j.slot] = { id: res.sequence_id || res.id, at: j.at, n: j.n }; })
+          .catch(function () {});
+      });
+    });
+    chain.catch(function () {}).then(function () {
+      saveSched(); syncing = false;
+      if (syncAgain) { syncAgain = false; syncReminders(); }
+    });
+  }
+
+  function renderNotify() {
+    P.on.checked = !!notify.enabled;
+    P.topic.value = notify.topic || '';
+    P.ptime.value = notify.planTime; P.rtime.value = notify.remindTime;
+    P.link.href = notify.topic ? NTFY + '/' + notify.topic : NTFY + '/app';
+  }
+
+  P.btn.addEventListener('click', function () { showPanel(P.panel.hidden ? 'plan' : ''); });
+  P.done.addEventListener('click', function () { showPanel(''); P.btn.focus(); });
+  P.vToday.addEventListener('click', function () { planView = 'today'; renderPlan(); });
+  P.vTmr.addEventListener('click', function () { planView = 'tomorrow'; renderPlan(); });
+  P.addBtn.addEventListener('click', addTask);
+  P.add.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addTask(); } });
+  P.list.addEventListener('change', function (e) {
+    var i = e.target.getAttribute('data-i'); if (i == null) return;
+    var p = ensurePlan(viewKey()); if (p.tasks[i]) p.tasks[i].d = e.target.checked; planChanged();
+  });
+  P.list.addEventListener('click', function (e) {
+    var i = e.target.getAttribute('data-del'); if (i == null) return;
+    ensurePlan(viewKey()).tasks.splice(i, 1); planChanged();
+  });
+  P.goal.addEventListener('input', function () {
+    var v = parseFloat(P.goal.value), p = ensurePlan(viewKey());
+    p.goal = (isNaN(v) || v < 0) ? null : Math.min(24, v);
+    savePlans(); if (!el.stats.hidden) renderStats();
+  });
+  P.nudgeGo.addEventListener('click', function () { planView = nudgeView; showPanel('plan'); });
+  P.nudgeLater.addEventListener('click', function () { snoozeUntil = Date.now() + 3600000; updateNudge(); });
+
+  P.on.addEventListener('change', function () {
+    notify.enabled = P.on.checked;
+    if (notify.enabled && !notify.topic) notify.topic = randomTopic();
+    saveNotify(); renderNotify();
+    if (notify.enabled) syncReminders(); else cancelAll();
+  });
+  P.topic.addEventListener('change', function () {
+    var v = P.topic.value.trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64);
+    if (!v) v = notify.topic || randomTopic();
+    cancelAll().then(function () { notify.topic = v; saveNotify(); renderNotify(); syncReminders(); });
+  });
+  function timeChanged() {
+    notify.planTime = P.ptime.value || '21:00'; notify.remindTime = P.rtime.value || '20:00';
+    saveNotify(); updateNudge(); syncReminders();
+  }
+  P.ptime.addEventListener('change', timeChanged);
+  P.rtime.addEventListener('change', timeChanged);
+  P.copy.addEventListener('click', function () {
+    if (!notify.topic) return;
+    var ok = function () { P.msg.textContent = 'คัดลอกชื่อช่องแล้ว'; };
+    var no = function () { P.topic.select(); P.msg.textContent = 'เลือกข้อความแล้ว กด Ctrl+C เพื่อคัดลอก'; };
+    try { navigator.clipboard.writeText(notify.topic).then(ok, no); } catch (e) { no(); }
+  });
+  P.test.addEventListener('click', function () {
+    if (!notify.topic) { notify.topic = randomTopic(); saveNotify(); renderNotify(); }
+    P.msg.textContent = 'กำลังส่ง...';
+    ntfyPublish('ทดสอบสำเร็จ ถ้าเห็นข้อความนี้ แปลว่าแจ้งเตือนใช้งานได้', 0)
+      .then(function () { P.msg.textContent = 'ส่งแล้ว ดูที่เครื่องที่สมัครรับช่องนี้ไว้ (ถ้ายังไม่ได้สมัคร ให้ลงแอป ntfy แล้วเพิ่มชื่อช่อง)'; })
+      .catch(function () { P.msg.textContent = 'ส่งไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่'; });
+  });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) { updateNudge(); syncReminders(); } });
 
   /* restore saved settings, then show the first frame */
   var cfg = load('lockin-cfg', {});
@@ -522,6 +791,9 @@
   }
   value = freshValue();
   render(); sync();
+  renderNotify(); updateNudge(); syncReminders();
+  setInterval(updateNudge, 30000);
+  setInterval(syncReminders, 30 * 60000);
 })();
 </script>
 <script>
