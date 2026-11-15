@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Lock In">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-512.png">
+<title>Lock In Timer</title>
+<style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=Oswald:wght@600;700&family=Bebas+Neue&family=Barlow+Condensed:wght@600;700&family=Space+Grotesk:wght@700&family=Orbitron:wght@700;800&family=JetBrains+Mono:wght@700;800&family=Noto+Sans+Thai:wght@400;600&display=swap">
+<style>
+  /* Layout: numerals alone in the middle, one primary button, quiet text links. Settings and stats open as floating cards. */
+  :root {
+    --bg: #0a0a0c;
+    --fg: #ffffff;
+    --muted: #7d7f8b;
+    --line: #25262d;
+    --card: #131318;
+    --bar: #34353f;
+    --accent: #ffb43a;
+    --font-display: "Montserrat", "Noto Sans Thai", system-ui, sans-serif;
+    --font-body: "Noto Sans Thai", system-ui, -apple-system, "Segoe UI", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; overflow: hidden; box-sizing: border-box; }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 16px;
+  }
+  main { height: 100%; display: flex; flex-direction: column; gap: 20px; min-width: 0; max-width: 1400px; margin: 0 auto; }
+
+  .stage { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+  .time {
+    font-family: var(--font-time, var(--font-display));
+    font-weight: var(--weight-time, 800);
+    font-variant-numeric: tabular-nums;
+    font-size: calc(clamp(3rem, min(17vw, 38vh), 24rem) * var(--scale-time, 1));
+    line-height: 1;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+  .time.break { color: var(--accent); }
+  .time.done { color: var(--accent); animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  @media (prefers-reduced-motion: reduce) { .time.done { animation: none; } }
+  .status { color: var(--muted); font-size: 0.9rem; min-height: 1.5em; }
+
+  .panel {
+    position: fixed; z-index: 20; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(480px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px;
+    display: flex; flex-direction: column; gap: 14px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7);
+  }
+  .panel h2 { margin: 0; font-size: 1rem; font-weight: 600; }
+  .panel .done-btn {
+    font: inherit; font-weight: 600; padding: 11px; border-radius: 10px; border: 1px solid var(--line);
+    background: transparent; color: var(--fg); cursor: pointer;
+  }
+  .panel .done-btn:hover { border-color: var(--muted); }
+
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 0.85rem; padding: 7px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+  .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
+  .group { display: flex; flex-direction: column; gap: 14px; }
+  .fields { display: flex; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+  .field label { color: var(--muted); font-size: 0.75rem; text-align: center; }
+  .field input {
+    width: 100%; min-width: 0; background: transparent; color: var(--fg); border: 0; border-bottom: 1px solid var(--line);
+    padding: 6px 0; font-family: var(--font-display); font-weight: 700; font-size: 1.5rem;
+    font-variant-numeric: tabular-nums; text-align: center; -moz-appearance: textfield; border-radius: 0;
+  }
+  .field input::-webkit-outer-spin-button, .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .field input:disabled { opacity: 0.4; }
+  .presets { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; }
+  .presets button { background: transparent; color: var(--muted); border: 0; font: inherit; font-size: 0.85rem; padding: 4px 0; cursor: pointer; }
+  .presets button:hover:not(:disabled) { color: var(--fg); }
+  .presets button:disabled { opacity: 0.4; cursor: default; }
+  .fonts { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
+  .fonts button { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 8px 6px; font-size: 1.1rem; line-height: 1.2; cursor: pointer; }
+  .fonts button:hover { color: var(--fg); }
+  .fonts button[aria-pressed="true"] { color: var(--fg); border-color: var(--fg); }
+
+  .big { font-family: var(--font-display); font-weight: 800; font-size: 1.9rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .note { color: var(--muted); font-size: 0.8rem; }
+  .meter { height: 6px; border-radius: 999px; background: var(--bar); overflow: hidden; }
+  .meter > div { height: 100%; width: 0; background: var(--fg); border-radius: 999px; transition: width 0.3s; }
+  .goal { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.85rem; }
+  .goal input { width: 4.5rem; background: transparent; color: var(--fg); border: 0; border-bottom: 1px solid var(--line); padding: 3px 0; font: inherit; font-weight: 600; text-align: center; border-radius: 0; font-variant-numeric: tabular-nums; }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 140px; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; height: 100%; }
+  .col .val { font-size: 0.7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .col .track { flex: 1; min-height: 0; width: 100%; display: flex; align-items: flex-end; }
+  .col .b { width: 100%; background: var(--bar); border-radius: 4px 4px 0 0; min-height: 2px; }
+  .col.today .b { background: var(--fg); }
+  .col .d { font-size: 0.75rem; color: var(--muted); }
+  .col.today .d { color: var(--fg); font-weight: 600; }
+
+  .bar { display: flex; flex-direction: column; align-items: center; gap: 14px; transition: opacity 0.2s; }
+  #go {
+    font: inherit; font-weight: 600; font-size: 1.05rem; width: 100%; max-width: 320px; padding: 14px 20px;
+    border-radius: 999px; border: 0; background: var(--fg); color: var(--bg); cursor: pointer;
+  }
+  .links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 24px; }
+  .links button { background: transparent; border: 0; color: var(--muted); font: inherit; font-size: 0.85rem; padding: 4px 0; cursor: pointer; }
+  .links button:hover { color: var(--fg); }
+
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  body.focus .panel, body.focus .status { display: none; }
+  body.focus .time { font-size: calc(clamp(3rem, min(19vw, 55vh), 30rem) * var(--scale-time, 1)); }
+  body.focus .bar {
+    position: fixed; left: 0; right: 0;
+    bottom: max(20px, env(safe-area-inset-bottom, 0px));
+    opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  }
+  body.focus.active .bar, body.focus .bar:hover { opacity: 1; pointer-events: auto; }
+  body.focus #settings, body.focus #reset, body.focus #statsbtn { display: none; }
+  body.focus:not(.active) { cursor: none; }
+  body.focus:not(.active) .bar:hover { cursor: auto; }
+</style>
+
+</head>
+<body>
+<main>
+  <section class="stage">
+    <div id="time" class="time" role="timer">8:00:00</div>
+    <p id="status" class="status">พร้อมเริ่ม</p>
+  </section>
+
+  <section class="panel" id="panel" hidden aria-label="ตั้งเวลา">
+    <div class="seg" role="group" aria-label="โหมด">
+      <button id="mode-down" type="button" aria-pressed="true">นับถอยหลัง</button>
+      <button id="mode-up" type="button" aria-pressed="false">จับเวลาขึ้น</button>
+      <button id="mode-pomo" type="button" aria-pressed="false">โพโมโดโร</button>
+    </div>
+
+    <div class="group" id="g-time">
+      <div class="fields">
+        <div class="field"><label for="in-h">ชั่วโมง</label><input id="in-h" type="number" inputmode="numeric" min="0" max="99" value="8"></div>
+        <div class="field"><label for="in-m">นาที</label><input id="in-m" type="number" inputmode="numeric" min="0" max="59" value="0"></div>
+        <div class="field"><label for="in-s">วินาที</label><input id="in-s" type="number" inputmode="numeric" min="0" max="59" value="0"></div>
+      </div>
+      <div class="presets" id="presets">
+        <button type="button" data-sec="28800">8 ชม.</button>
+        <button type="button" data-sec="14400">4 ชม.</button>
+        <button type="button" data-sec="7200">2 ชม.</button>
+        <button type="button" data-sec="3000">50 นาที</button>
+        <button type="button" data-sec="1500">25 นาที</button>
+      </div>
+    </div>
+
+    <div class="group" id="g-pomo" hidden>
+      <div class="fields">
+        <div class="field"><label for="in-pf">โฟกัส (นาที)</label><input id="in-pf" type="number" inputmode="numeric" min="1" max="300" value="50"></div>
+        <div class="field"><label for="in-pb">พัก (นาที)</label><input id="in-pb" type="number" inputmode="numeric" min="0" max="120" value="10"></div>
+        <div class="field"><label for="in-pr">จำนวนรอบ</label><input id="in-pr" type="number" inputmode="numeric" min="1" max="20" value="4"></div>
+      </div>
+      <div class="presets" id="pomo-presets">
+        <button type="button" data-f="25" data-b="5" data-r="4">25 / 5</button>
+        <button type="button" data-f="50" data-b="10" data-r="4">50 / 10</button>
+        <button type="button" data-f="90" data-b="20" data-r="3">90 / 20</button>
+      </div>
+    </div>
+
+    <div class="fonts" id="fonts" role="group" aria-label="ฟอนต์ตัวเลข">
+      <button type="button" aria-pressed="true" data-key="montserrat" data-font="'Montserrat'" data-weight="800" data-scale="1" style="font-family:'Montserrat';font-weight:800">12:34</button>
+      <button type="button" aria-pressed="false" data-key="oswald" data-font="'Oswald'" data-weight="700" data-scale="1.1" style="font-family:'Oswald';font-weight:700">12:34</button>
+      <button type="button" aria-pressed="false" data-key="bebas" data-font="'Bebas Neue'" data-weight="400" data-scale="1.2" style="font-family:'Bebas Neue'">12:34</button>
+      <button type="button" aria-pressed="false" data-key="barlow" data-font="'Barlow Condensed'" data-weight="700" data-scale="1.2" style="font-family:'Barlow Condensed';font-weight:700">12:34</button>
+      <button type="button" aria-pressed="false" data-key="grotesk" data-font="'Space Grotesk'" data-weight="700" data-scale="1" style="font-family:'Space Grotesk';font-weight:700">12:34</button>
+      <button type="button" aria-pressed="false" data-key="orbitron" data-font="'Orbitron'" data-weight="800" data-scale="0.8" style="font-family:'Orbitron';font-weight:800">12:34</button>
+      <button type="button" aria-pressed="false" data-key="mono" data-font="'JetBrains Mono'" data-weight="800" data-scale="1" style="font-family:'JetBrains Mono';font-weight:800">12:34</button>
+    </div>
+    <button id="done" class="done-btn" type="button">เสร็จ</button>
+  </section>
+
+  <section class="panel" id="stats" hidden aria-label="สถิติ">
+    <h2>สถิติการโฟกัส</h2>
+    <div class="row">
+      <div><div class="note">วันนี้</div><div class="big" id="st-today">0 นาที</div></div>
+      <div style="text-align:right"><div class="note">ติดต่อกัน</div><div class="big" id="st-streak">0 วัน</div></div>
+    </div>
+    <div>
+      <div class="meter"><div id="st-meter"></div></div>
+      <div class="row" style="margin-top:8px">
+        <span class="note" id="st-pct">0% ของเป้าหมาย</span>
+        <label class="goal" for="in-goal">เป้าหมาย <input id="in-goal" type="number" inputmode="decimal" min="0" max="24" step="0.5" value="6"> ชม./วัน</label>
+      </div>
+    </div>
+    <div>
+      <div class="note" style="margin-bottom:6px">7 วันล่าสุด (ชั่วโมง)</div>
+      <div class="week" id="st-week"></div>
+    </div>
+    <div class="note">นับเฉพาะเวลาโฟกัส ไม่รวมเวลาพัก วันที่นับต่อเนื่องคือวันที่โฟกัสอย่างน้อย 10 นาที ข้อมูลเก็บในเบราว์เซอร์เครื่องนี้</div>
+    <button id="stats-done" class="done-btn" type="button">เสร็จ</button>
+  </section>
+
+  <footer class="bar">
+    <button id="go" type="button">เริ่ม</button>
+    <div class="links">
+      <button id="reset" type="button">รีเซ็ต</button>
+      <button id="settings" type="button" aria-expanded="false">ตั้งเวลา</button>
+      <button id="statsbtn" type="button" aria-expanded="false">สถิติ</button>
+      <button id="focus" type="button" aria-pressed="false">โหมดโฟกัส</button>
+    </div>
+  </footer>
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {
+    time: $('time'), status: $('status'), h: $('in-h'), m: $('in-m'), s: $('in-s'),
+    pf: $('in-pf'), pb: $('in-pb'), pr: $('in-pr'), goal: $('in-goal'),
+    go: $('go'), reset: $('reset'), focus: $('focus'), settings: $('settings'), statsBtn: $('statsbtn'),
+    panel: $('panel'), stats: $('stats'), gTime: $('g-time'), gPomo: $('g-pomo'),
+    down: $('mode-down'), up: $('mode-up'), pomo: $('mode-pomo'), presets: $('presets'), pomoPresets: $('pomo-presets')
+  };
+  var MIN_DAY_MS = 10 * 60000;
+  var DAYS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+
+  function load(key, def) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+  function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+
+  var log = load('lockin-log', {});
+  if (!log || typeof log !== 'object') log = {};
+  var mode = 'down', value = 0, running = false, t0 = 0, base = 0, timer = 0, done = false;
+  var phase = 'focus', round = 1, lastAcc = 0, lastSave = 0, dirty = false, audio = null, wake = null;
+
+  function clamp(v, a, b) { v = parseInt(v, 10); if (isNaN(v)) v = 0; return Math.min(b, Math.max(a, v)); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function total() {
+    return ((clamp(el.h.value, 0, 99) * 60 + clamp(el.m.value, 0, 59)) * 60 + clamp(el.s.value, 0, 59)) * 1000;
+  }
+  function pomoFocus() { return clamp(el.pf.value, 1, 300) * 60000; }
+  function pomoBreak() { return clamp(el.pb.value, 0, 120) * 60000; }
+  function pomoRounds() { return clamp(el.pr.value, 1, 20); }
+  function freshValue() { return mode === 'down' ? total() : mode === 'pomo' ? pomoFocus() : 0; }
+  function isFresh() { return mode === 'up' ? value === 0 : (phase === 'focus' && round === 1 && value === freshValue()); }
+  function fmt(ms) {
+    var t = mode === 'up' ? Math.floor(ms / 1000) : Math.ceil(ms / 1000);
+    return Math.floor(t / 3600) + ':' + pad(Math.floor((t % 3600) / 60)) + ':' + pad(t % 60);
+  }
+  function render() { el.time.textContent = fmt(value); }
+
+  function saveCfg() {
+    save('lockin-cfg', {
+      mode: mode, h: el.h.value, m: el.m.value, s: el.s.value,
+      pf: el.pf.value, pb: el.pb.value, pr: el.pr.value, goal: el.goal.value
+    });
+  }
+
+  function sync() {
+    var paused = !running && !done && !isFresh();
+    var label = mode === 'pomo' ? (phase === 'focus' ? 'โฟกัส' : 'พัก') + ' · รอบ ' + round + '/' + pomoRounds() : '';
+    el.go.textContent = running ? 'หยุดชั่วคราว' : (paused ? 'เริ่มต่อ' : 'เริ่ม');
+    var txt;
+    if (running) txt = mode === 'up' ? 'กำลังจับเวลา' : mode === 'pomo' ? label : 'กำลังนับถอยหลัง';
+    else if (done) txt = mode === 'pomo' ? 'ครบทุกรอบแล้ว' : 'หมดเวลาแล้ว';
+    else if (paused) txt = 'หยุดชั่วคราว' + (label ? ' · ' + label : '');
+    else txt = 'พร้อมเริ่ม' + (mode === 'pomo' ? ' · ' + clamp(el.pf.value, 1, 300) + ' นาที × ' + pomoRounds() + ' รอบ' : '');
+    el.status.textContent = txt;
+    el.time.classList.toggle('done', done);
+    el.time.classList.toggle('break', mode === 'pomo' && phase === 'break' && !done);
+    [el.h, el.m, el.s, el.pf, el.pb, el.pr].forEach(function (i) { i.disabled = running; });
+    Array.prototype.forEach.call(el.presets.children, function (b) { b.disabled = running; });
+    Array.prototype.forEach.call(el.pomoPresets.children, function (b) { b.disabled = running; });
+    el.down.setAttribute('aria-pressed', mode === 'down');
+    el.up.setAttribute('aria-pressed', mode === 'up');
+    el.pomo.setAttribute('aria-pressed', mode === 'pomo');
+    el.gTime.hidden = mode !== 'down';
+    el.gPomo.hidden = mode !== 'pomo';
+  }
+
+  /* sound and screen lock */
+  function unlockAudio() {
+    try {
+      if (!audio) { var C = window.AudioContext || window.webkitAudioContext; if (C) audio = new C(); }
+      if (audio && audio.state === 'suspended') audio.resume();
+    } catch (e) {}
+  }
+  function beep(freqs) {
+    if (!audio) return;
+    try {
+      freqs.forEach(function (f, i) {
+        var o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime + i * 0.35;
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+        o.connect(g); g.connect(audio.destination); o.start(t); o.stop(t + 0.3);
+      });
+    } catch (e) {}
+  }
+  function lock() {
+    try {
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        navigator.wakeLock.request('screen').then(function (l) { wake = l; }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+  function release() {
+    try { if (wake) { wake.release().catch(function () {}); } } catch (e) {}
+    wake = null;
+  }
+
+  /* focus-time log, one total per calendar day */
+  function dayKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function persist(now) { save('lockin-log', log); lastSave = now || Date.now(); dirty = false; }
+  function accrue(now) {
+    if (!running) return;
+    var focusing = !(mode === 'pomo' && phase === 'break');
+    if (focusing && now > lastAcc) {
+      var k = dayKey(new Date(now));
+      log[k] = (log[k] || 0) + (now - lastAcc);
+      dirty = true;
+    }
+    lastAcc = now;
+    if (dirty && now - lastSave > 5000) persist(now);
+  }
+
+  /* timer engine */
+  function tick() {
+    var now = Date.now();
+    accrue(now);
+    if (mode === 'up') { value = base + (now - t0); render(); return; }
+    value = Math.max(0, base - (now - t0));
+    render();
+    if (value === 0) { if (mode === 'pomo') nextPhase(now); else finish(); }
+  }
+  function stopLoop() { running = false; clearInterval(timer); release(); persist(); sync(); }
+  function finish() { stopLoop(); done = true; value = 0; render(); beep([880, 880, 880]); sync(); }
+  function nextPhase(now) {
+    if (phase === 'focus') {
+      if (round >= pomoRounds()) { finish(); return; }
+      if (pomoBreak() > 0) { phase = 'break'; base = pomoBreak(); beep([880, 660, 440]); }
+      else { round++; base = pomoFocus(); beep([440, 660, 880]); }
+    } else {
+      phase = 'focus'; round++; base = pomoFocus(); beep([440, 660, 880]);
+    }
+    t0 = now; lastAcc = now; value = base; render(); sync();
+  }
+
+  function start() {
+    if (running) return;
+    if (mode !== 'up' && value <= 0) { phase = 'focus'; round = 1; value = freshValue(); }
+    if (mode !== 'up' && value <= 0) return;
+    done = false; unlockAudio(); lock(); showPanel('');
+    t0 = Date.now(); lastAcc = t0; base = value; running = true;
+    timer = setInterval(tick, 100);
+    render(); sync();
+  }
+  function pause() { if (!running) return; tick(); if (running) stopLoop(); }
+  function toggle() { running ? pause() : start(); }
+  function reset() { stopLoop(); done = false; phase = 'focus'; round = 1; value = freshValue(); render(); sync(); }
+  function setMode(m) { if (m === mode) return; mode = m; saveCfg(); reset(); }
+  function applyInputs() {
+    if (running) return;
+    saveCfg();
+    if (mode !== 'up') { done = false; phase = 'focus'; round = 1; value = freshValue(); render(); sync(); }
+  }
+
+  /* panels */
+  function showPanel(name) {
+    el.panel.hidden = name !== 'settings';
+    el.stats.hidden = name !== 'stats';
+    el.settings.setAttribute('aria-expanded', name === 'settings');
+    el.statsBtn.setAttribute('aria-expanded', name === 'stats');
+    if (name === 'stats') renderStats();
+  }
+  function hm(ms) {
+    var h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    return h > 0 ? h + ' ชม. ' + m + ' นาที' : m + ' นาที';
+  }
+  function renderStats() {
+    accrue(Date.now());
+    var now = new Date(), today = log[dayKey(now)] || 0;
+    var goalH = parseFloat(el.goal.value); if (isNaN(goalH) || goalH < 0) goalH = 0;
+    var goalMs = goalH * 3600000;
+    $('st-today').textContent = hm(today);
+    var pct = goalMs > 0 ? Math.min(100, today / goalMs * 100) : 0;
+    $('st-meter').style.width = pct + '%';
+    $('st-pct').textContent = goalMs > 0 ? Math.floor(today / goalMs * 100) + '% ของเป้าหมาย' : 'ยังไม่ตั้งเป้าหมาย';
+
+    var streak = 0, d = new Date(now);
+    if ((log[dayKey(d)] || 0) < MIN_DAY_MS) d.setDate(d.getDate() - 1);
+    while ((log[dayKey(d)] || 0) >= MIN_DAY_MS) { streak++; d.setDate(d.getDate() - 1); }
+    $('st-streak').textContent = streak + ' วัน';
+
+    var days = [], max = Math.max(goalMs, 1);
+    for (var i = 6; i >= 0; i--) {
+      var x = new Date(now); x.setDate(x.getDate() - i);
+      var v = log[dayKey(x)] || 0;
+      days.push({ v: v, label: DAYS[x.getDay()], today: i === 0 });
+      if (v > max) max = v;
+    }
+    var box = $('st-week'); box.textContent = '';
+    days.forEach(function (o) {
+      var col = document.createElement('div'); col.className = 'col' + (o.today ? ' today' : '');
+      var val = document.createElement('div'); val.className = 'val'; val.textContent = o.v > 0 ? (o.v / 3600000).toFixed(1) : '0';
+      var track = document.createElement('div'); track.className = 'track';
+      var b = document.createElement('div'); b.className = 'b'; b.style.height = (o.v / max * 100) + '%';
+      track.appendChild(b);
+      var d2 = document.createElement('div'); d2.className = 'd'; d2.textContent = o.label;
+      col.appendChild(val); col.appendChild(track); col.appendChild(d2);
+      box.appendChild(col);
+    });
+  }
+
+  /* focus mode: nothing visible until the mouse moves */
+  var idle = 0;
+  function wakeUi() {
+    var b = document.body;
+    if (!b.classList.contains('focus')) return;
+    b.classList.add('active');
+    clearTimeout(idle);
+    idle = setTimeout(function () { b.classList.remove('active'); }, 2500);
+  }
+  ['mousemove', 'mousedown', 'touchstart', 'keydown'].forEach(function (ev) {
+    document.addEventListener(ev, wakeUi, { passive: true });
+  });
+  function setFocus(on) {
+    document.body.classList.toggle('focus', on);
+    clearTimeout(idle);
+    document.body.classList.remove('active');
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    el.focus.textContent = on ? 'ออกโหมดโฟกัส' : 'โหมดโฟกัส';
+    el.focus.setAttribute('aria-pressed', on);
+    var d = document.documentElement;
+    if (on) {
+      var p = d.requestFullscreen && d.requestFullscreen();
+      if (p && p.catch) p.catch(function () {});
+    } else if (document.fullscreenElement) {
+      var q = document.exitFullscreen();
+      if (q && q.catch) q.catch(function () {});
+    }
+  }
+  document.addEventListener('fullscreenchange', function () {
+    if (!document.fullscreenElement && document.body.classList.contains('focus')) setFocus(false);
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (running) accrue(Date.now()); persist(); }
+    else if (running) lock();
+  });
+  window.addEventListener('pagehide', function () { if (running) accrue(Date.now()); persist(); });
+
+  /* fonts */
+  var fontsBox = $('fonts');
+  function setFont(btn, saveIt) {
+    var root = document.documentElement.style;
+    root.setProperty('--font-time', btn.getAttribute('data-font') + ', sans-serif');
+    root.setProperty('--weight-time', btn.getAttribute('data-weight'));
+    root.setProperty('--scale-time', btn.getAttribute('data-scale'));
+    Array.prototype.forEach.call(fontsBox.children, function (b) { b.setAttribute('aria-pressed', b === btn); });
+    if (saveIt) { try { localStorage.setItem('lockin-font', btn.getAttribute('data-key')); } catch (e) {} }
+  }
+  fontsBox.addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) setFont(b, true); });
+  try {
+    var savedFont = localStorage.getItem('lockin-font');
+    if (savedFont) Array.prototype.forEach.call(fontsBox.children, function (b) {
+      if (b.getAttribute('data-key') === savedFont) setFont(b, false);
+    });
+  } catch (e) {}
+
+  /* events */
+  el.go.addEventListener('click', toggle);
+  el.reset.addEventListener('click', reset);
+  el.settings.addEventListener('click', function () { showPanel(el.panel.hidden ? 'settings' : ''); });
+  el.statsBtn.addEventListener('click', function () { showPanel(el.stats.hidden ? 'stats' : ''); });
+  $('done').addEventListener('click', function () { showPanel(''); el.settings.focus(); });
+  $('stats-done').addEventListener('click', function () { showPanel(''); el.statsBtn.focus(); });
+  el.focus.addEventListener('click', function () { setFocus(!document.body.classList.contains('focus')); });
+  el.down.addEventListener('click', function () { setMode('down'); });
+  el.up.addEventListener('click', function () { setMode('up'); });
+  el.pomo.addEventListener('click', function () { setMode('pomo'); });
+  [el.h, el.m, el.s, el.pf, el.pb, el.pr].forEach(function (i) { i.addEventListener('input', applyInputs); });
+  el.goal.addEventListener('input', function () { saveCfg(); renderStats(); });
+  el.presets.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || b.disabled) return;
+    var sec = parseInt(b.getAttribute('data-sec'), 10);
+    el.h.value = Math.floor(sec / 3600); el.m.value = Math.floor((sec % 3600) / 60); el.s.value = sec % 60;
+    applyInputs();
+  });
+  el.pomoPresets.addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b || b.disabled) return;
+    el.pf.value = b.getAttribute('data-f'); el.pb.value = b.getAttribute('data-b'); el.pr.value = b.getAttribute('data-r');
+    applyInputs();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && (!el.panel.hidden || !el.stats.hidden)) { showPanel(''); return; }
+    var tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'button') return;
+    if (e.code === 'Space') { e.preventDefault(); toggle(); }
+    else if (e.key === 'f' || e.key === 'F') setFocus(!document.body.classList.contains('focus'));
+  });
+
+  /* restore saved settings, then show the first frame */
+  var cfg = load('lockin-cfg', {});
+  if (cfg && typeof cfg === 'object') {
+    if (cfg.h != null) el.h.value = cfg.h;
+    if (cfg.m != null) el.m.value = cfg.m;
+    if (cfg.s != null) el.s.value = cfg.s;
+    if (cfg.pf != null) el.pf.value = cfg.pf;
+    if (cfg.pb != null) el.pb.value = cfg.pb;
+    if (cfg.pr != null) el.pr.value = cfg.pr;
+    if (cfg.goal != null) el.goal.value = cfg.goal;
+    if (cfg.mode === 'up' || cfg.mode === 'pomo' || cfg.mode === 'down') mode = cfg.mode;
+  }
+  value = freshValue();
+  render(); sync();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
+</script>
+</body>
+</html>
